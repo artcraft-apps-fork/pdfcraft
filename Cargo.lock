@@ -1318,6 +1318,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-modal"
+version = "0.1.0"
+dependencies = [
+ "egui",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "craft-opc"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
@@ -5042,6 +5051,7 @@ dependencies = [
  "craft-image-codecs",
  "craft-keymap",
  "craft-menu",
+ "craft-modal",
  "craft-quit",
  "craft-ui",
  "craft-update",

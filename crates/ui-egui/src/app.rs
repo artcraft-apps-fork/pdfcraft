@@ -757,6 +757,7 @@ impl PdfCraftApp {
         craft_menu::bar::leave_for_shortcut(ctx);
         self.hotbar.close_hidden_picker(ctx, self.hotbar_hidden());
         self.page_keys = page_keys::PageKeys::new(self.over_pages(ctx));
+        crate::modal::intercept_keys(self, ctx);
         self.shortcuts(ctx);
         // Scrolling and group-drag previews are transient: never resume after changing tabs,
         // opening a modal/palette, or returning to a window that lost focus.
@@ -860,6 +861,7 @@ impl PdfCraftApp {
             // Notices too: a refused field value or a failed save must be seen in full screen.
             self.show_progress(&ctx);
             widgets::toast(self, &ctx);
+            crate::modal::paint_overlay(self, &ctx);
             self.finish_render_frame(&ctx);
             if let Some(mut control) = self.control.take() {
                 control.finish_frame(&ctx, self);
@@ -893,6 +895,7 @@ impl PdfCraftApp {
             dialogs::show(self, &ctx);
             self.show_progress(&ctx);
             widgets::toast(self, &ctx);
+            crate::modal::paint_overlay(self, &ctx);
             self.finish_render_frame(&ctx);
             if let Some(mut control) = self.control.take() {
                 control.finish_frame(&ctx, self);
@@ -922,6 +925,7 @@ impl PdfCraftApp {
         dialogs::show(self, &ctx);
         self.show_progress(&ctx);
         widgets::toast(self, &ctx);
+        crate::modal::paint_overlay(self, &ctx);
         self.finish_render_frame(&ctx);
         // Screenshots are issued only after a settled pass that really drew the window.
         if let Some(mut control) = self.control.take() {

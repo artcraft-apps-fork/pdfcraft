@@ -296,6 +296,52 @@ impl DocView {
         self.selection = Some(Selection::run(page, from, to));
     }
 
+    /// Select glyphs inside the view-space column rectangle `rect` on `page`.
+    pub(crate) fn select_column(&mut self, page: usize, rect: [f32; 4]) {
+        self.all_text = false;
+        self.selection = Some(Selection { page, span: Span::Column { rect } });
+    }
+
+    /// Active reading-order selection `(page, anchor, head)` if any (single-page only).
+    pub(crate) fn selection_run(&self) -> Option<(usize, usize, usize)> {
+        let s = self.selection?;
+        match s.span {
+            Span::Run { anchor, head, head_page, .. } if head_page == s.page => Some((s.page, anchor, head)),
+            _ => None,
+        }
+    }
+
+    /// The page the active text selection ends on, if any.
+    pub(crate) fn selection_head_page(&self) -> Option<usize> {
+        self.selection.map(|s| s.head_page())
+    }
+
+    /// Scroll smoothly (or jump pages) so `glyph` on `page` is visible; if `align` is `Some(frac)`,
+    /// places the glyph vertically at `frac` (0.0 top .. 1.0 bottom) of the viewport.
+    pub(crate) fn ensure_glyph_visible(&mut self, page: usize, glyph: usize, scrolloff_lines: usize, align: Option<f32>) {
+        if let Some(rect) = self.glyph_screen_rect(page, glyph)
+            && self.viewport_screen.is_positive()
+        {
+            if let Some(frac) = align {
+                let target_y = self.viewport_screen.top() + self.viewport_screen.height() * frac.clamp(0.05, 0.95);
+                self.key_scroll += rect.center().y - target_y;
+                return;
+            }
+            let margin = (rect.height().max(14.0) * (scrolloff_lines as f32)).min(self.viewport_screen.height() * 0.35);
+            let top_bound = self.viewport_screen.top() + margin;
+            let bot_bound = self.viewport_screen.bottom() - margin;
+            if rect.top() < top_bound {
+                self.key_scroll += rect.top() - top_bound;
+            } else if rect.bottom() > bot_bound {
+                self.key_scroll += rect.bottom() - bot_bound;
+            }
+            return;
+        }
+        if page < self.page_count && page != self.current {
+            self.go_to_page(page);
+        }
+    }
+
     /// Screen position of the centre of glyph `glyph` on `page`, if that page is on screen and its
     /// text layer is loaded (used by UI tests and automation to aim pointer input).
     pub fn glyph_screen_pos(&self, page: usize, glyph: usize) -> Option<Pos2> {

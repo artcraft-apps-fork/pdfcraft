@@ -90,6 +90,7 @@ pub use workflows::ocr_verify::{OcrVerify, Phase};
 mod app;
 mod frame_guard;
 mod hooks;
+pub mod modal;
 mod persist;
 mod platform;
 #[cfg(not(target_arch = "wasm32"))]
