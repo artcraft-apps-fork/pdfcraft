@@ -1654,6 +1654,10 @@ fn command_list_reports_enablement_and_tools() {
     let undo = list["commands"].as_array().unwrap().iter().find(|c| c["id"] == "edit.undo").unwrap().clone();
     assert_eq!(undo["enabled"], true);
     assert_eq!(undo["label"], "Undo Rotate page");
+    assert_eq!(find("app.quit")["menu"], "File");
+    assert_eq!(find("app.quit")["enabled"], true);
+    assert_eq!(find("ace.open_link")["menu"], "Help");
+    assert_eq!(find("ace.open_link")["enabled"], true);
 }
 
 // ---- MCP ---------------------------------------------------------------------------------------

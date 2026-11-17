@@ -316,6 +316,13 @@ impl DocView {
         self.text_links.get(&page).and_then(|(_, links)| links.get(index)).map(|l| l.uri.clone())
     }
 
+    /// Every plain-text address visible on `page` that is not covered by a link annotation.
+    pub(crate) fn visible_text_links(&self, info: &DocInfo, page: usize) -> Vec<&TextLink> {
+        let Some((_, links)) = self.text_links.get(&page) else { return Vec::new() };
+        let Some(page_info) = info.pages.get(page) else { return Vec::new() };
+        links.iter().filter(|tl| !info.links.iter().any(|l| l.page == page && tl.covered_by(page_info, l.rect))).collect()
+    }
+
     /// Whether `page`'s text layer has arrived from the renderer. Selecting text, the I-beam and
     /// find matches on a page all wait for it (tests and automation).
     pub fn has_page_text(&self, page: usize) -> bool {

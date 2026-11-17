@@ -234,7 +234,13 @@ impl PdfCraftApp {
                     self.open_url(l.url);
                 }
             }
+            "ace.open_link" => self.toggle_ace_link(),
             "app.preferences" => self.dialog = Some(Dialog::Preferences),
+            "app.quit" => {
+                if let Some(ctx) = self.ctx.clone() {
+                    self.request_quit(&ctx);
+                }
+            }
             "protect.remove_hidden" => self.open_remove_hidden(),
             "print.dialog" => self.open_print(),
             "optimize.advanced" => self.dialog = Some(Dialog::Optimize),
@@ -863,6 +869,10 @@ impl PdfCraftApp {
         let mut specs: Vec<_> = COMMANDS.iter().filter_map(|c| c.shortcut_for(mac).map(|s| (c, s))).collect();
         specs.sort_by_key(|(_, s)| std::cmp::Reverse(s.modifier_count()));
         for (spec, s) in specs {
+            // `guard_quit` owns ⌘Q / Ctrl+Q so exact modifiers (not Ctrl+Alt+Q) and modal dialogs work.
+            if spec.id == "app.quit" {
+                continue;
+            }
             // Keep the canvas's silent no-op when there is no previous/next view to visit.
             if matches!(spec.id, "view.previous_view" | "view.next_view") && !self.command_enabled(spec) {
                 continue;

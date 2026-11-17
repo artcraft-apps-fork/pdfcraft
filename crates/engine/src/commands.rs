@@ -205,6 +205,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("print.dialog", "Print…", FILE, Some(Shortcut::cmd("P")), Printing, "printer"),
     c("file.properties", "Document properties…", FILE, Some(Shortcut::cmd("D")), Document, "info"),
     c("file.word_count", "Word count…", FILE, None, Copying, "hash"),
+    c("app.quit", "Quit application", FILE, Some(Shortcut::cmd("Q")), Nothing, "circle-x"),
     ct("edit.undo", "Undo", EDIT, Some(Shortcut::cmd("Z")), Undo, "undo-2"),
     ct("edit.redo", "Redo", EDIT, Some(Shortcut::cmd_shift("Z")), Redo, "redo-2"),
     c("edit.find", "Find…", EDIT, Some(Shortcut::cmd("F")), Document, "search"),
@@ -440,6 +441,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("help.app_page", "PdfCraft web page", HELP, None, Nothing, "globe"),
     c("help.github", "PdfCraft on GitHub", HELP, None, Nothing, "code-xml"),
     c("help.website", "ArtCraft website", HELP, None, Nothing, "external-link"),
+    c("ace.open_link", "Ace-open link", HELP, None, Nothing, "external-link"),
     c("help.check_updates", "Check for updates…", HELP, None, Nothing, "cloud"),
     c("help.about", "About PdfCraft", HELP, None, Nothing, "info"),
 ];
@@ -565,5 +567,22 @@ mod tests {
         s.apply(id, crate::Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
         assert!(is_enabled(undo, &s, Some(id)));
         assert_eq!(current_label(undo, &s, Some(id)), "Undo Rotate page");
+    }
+
+    #[test]
+    fn quit_and_ace_link_commands_are_registered() {
+        let s = Session::new();
+        let quit = command("app.quit").unwrap();
+        assert_eq!(quit.label, "Quit application");
+        assert_eq!(quit.menu, Some("File"));
+        assert_eq!(quit.shortcut_for(true), Some(Shortcut::cmd("Q")));
+        assert_eq!(quit.shortcut_for(false), Some(Shortcut::cmd("Q")));
+        assert!(is_enabled(quit, &s, None));
+
+        let ace = command("ace.open_link").unwrap();
+        assert_eq!(ace.label, "Ace-open link");
+        assert_eq!(ace.menu, Some("Help"));
+        assert_eq!(ace.shortcut_for(true), None);
+        assert!(is_enabled(ace, &s, None));
     }
 }

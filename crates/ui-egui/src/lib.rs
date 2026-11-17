@@ -87,6 +87,7 @@ pub use recovery::{AUTOSAVE_SECS, RecoveryMeta, RecoveryStore, default_dictionar
 use theme::{ThemeKind, ThemePreference};
 pub use workflows::ocr_verify::{OcrVerify, Phase};
 
+pub mod ace_link;
 mod app;
 mod frame_guard;
 mod hooks;
@@ -862,4 +863,6 @@ pub struct PdfCraftApp {
     pub pending_window: Option<viewer_prefs::PendingWindow>,
     /// An absolute GoToR target waiting for approval, before any target-file I/O (#1364).
     pub pending_remote_link: Option<PendingRemoteLink>,
+    /// Single-character hint overlay state for `ace.open_link`.
+    pub ace_link: ace_link::AceLinkState,
 }

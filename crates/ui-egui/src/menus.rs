@@ -128,6 +128,7 @@ const FILE: &[&str] = &[
     "file.word_count",
     SEP,
     "print.dialog",
+    "app.quit",
 ];
 const CREATE: &[&str] = &["create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
 const EXPORT: &[&str] = &["export.docx", "export.pptx", "export.rtf", "export.html", "export.text", SEP, "export.image", "export.all_images"];
@@ -227,8 +228,19 @@ const SIGN: &[&str] = &[
     "sign.panel",
 ];
 const WINDOW: &[&str] = &["view.next_tab", "view.previous_tab"];
-const HELP: &[&str] =
-    &["help.shortcuts", SEP, "help.app_page", "help.github", "help.website", "help.discord", SEP, "help.check_updates", SEP, "help.about"];
+const HELP: &[&str] = &[
+    "help.shortcuts",
+    SEP,
+    "help.app_page",
+    "help.github",
+    "help.website",
+    "help.discord",
+    "ace.open_link",
+    SEP,
+    "help.check_updates",
+    SEP,
+    "help.about",
+];
 
 /// A registry shortcut as a craft-keymap chord: `command` is ⌘ (Ctrl elsewhere) and `mac_ctrl`
 /// the Control key on macOS. `None` for a key craft-keymap doesn't name.
@@ -379,6 +391,7 @@ impl PdfCraftApp {
         };
         bar.tag_item(&CommandRef::new("help.about"), ItemRole::About);
         bar.tag_item(&CommandRef::new("app.preferences"), ItemRole::Settings);
+        bar.tag_item(&CommandRef::new("app.quit"), ItemRole::Quit);
         craft_menu::apply_state(&mut bar, |command| self.menu_state(ctx, command));
         bar
     }
@@ -829,5 +842,34 @@ mod tests {
         app.native_menu_clicks(&ctx);
         app.native_menu_clicks(&ctx);
         assert_eq!(app.session.get(doc).unwrap().info.pages[0].rotation, (before + 90) % 360, "rotated once");
+    }
+
+    #[test]
+    fn quit_and_ace_link_appear_in_menus_and_run() {
+        let (mut app, ctx) = app(&["a.pdf"]);
+        app.ctx = Some(ctx.clone());
+        let linux_bar = linux(&app, &ctx);
+        assert_eq!(item(&linux_bar, &CommandRef::new("app.quit")).label, "Quit");
+        assert_eq!(item(&linux_bar, &CommandRef::new("ace.open_link")).label, "Ace-open link");
+
+        let windows_bar = craft_menu::layout(&app.menu_bar(&ctx), Target::Windows, &layout_options()).bar;
+        assert_eq!(item(&windows_bar, &CommandRef::new("app.quit")).label, "Exit");
+
+        let mac_bar = craft_menu::mac_layout(&app.menu_bar(&ctx), &layout_options()).bar;
+        let mac_quit = item(&mac_bar, &CommandRef::new("app.quit"));
+        assert_eq!(mac_quit.label, "Quit PdfCraft");
+        assert_eq!(mac_quit.shortcut, chord(Shortcut::cmd("Q")));
+
+        let web_bar = craft_menu::layout(&app.menu_bar(&ctx), Target::Web, &layout_options()).bar;
+        assert!(web_bar.find(&CommandRef::new("app.quit")).is_none());
+        assert!(web_bar.find(&CommandRef::new("ace.open_link")).is_some());
+
+        app.run_menu_command(&ctx, &CommandRef::new("ace.open_link"));
+        assert!(app.ace_link.active);
+        app.run_menu_command(&ctx, &CommandRef::new("ace.open_link"));
+        assert!(!app.ace_link.active);
+
+        app.run_menu_command(&ctx, &CommandRef::new("app.quit"));
+        assert!(app.allow_quit);
     }
 }

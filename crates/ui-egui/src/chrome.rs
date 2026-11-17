@@ -276,7 +276,9 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         app.dialog = Some(Dialog::Shortcuts);
                     }
                     // One click to the community, from anywhere in the app.
-                    if widgets::ghost_button_sized(ui, "messages-square", "Discord", tab_h).on_hover_text(pdfcraft_engine::links::DISCORD).clicked() {
+                    let discord = widgets::ghost_button_sized(ui, "messages-square", "Discord", tab_h).on_hover_text(pdfcraft_engine::links::DISCORD);
+                    crate::ace_link::record_ui_url(ui, &discord, pdfcraft_engine::links::DISCORD);
+                    if discord.clicked() {
                         app.execute("help.discord");
                     }
                 });

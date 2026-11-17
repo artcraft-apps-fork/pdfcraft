@@ -2271,3 +2271,33 @@ fn accessible_labels_on_format_text_and_pin_dialog() {
     let char_spin = ok(&mut h, &c, "ui.inspect", json!({"query": "Character spacing", "role": "SpinButton"}));
     assert!(char_spin["count"].as_u64().unwrap() >= 1, "character spacing spin button has accessible label: {char_spin}");
 }
+
+#[test]
+fn control_lists_and_runs_quit_and_ace_open_link() {
+    let (mut h, c) = harness();
+    let list = ok(&mut h, &c, "ui.commands", json!({}));
+    let cmds = list["commands"].as_array().unwrap();
+    let quit = cmds.iter().find(|cmd| cmd["id"] == "app.quit").unwrap();
+    assert_eq!(quit["label"], "Quit application");
+    assert_eq!(quit["menu"], "File");
+    assert_eq!(quit["enabled"], true);
+
+    let ace = cmds.iter().find(|cmd| cmd["id"] == "ace.open_link").unwrap();
+    assert_eq!(ace["label"], "Ace-open link");
+    assert_eq!(ace["menu"], "Help");
+    assert_eq!(ace["enabled"], true);
+
+    ok(&mut h, &c, "ui.command", json!({ "id": "ace.open_link" }));
+    h.run_steps(2);
+    let state = ok(&mut h, &c, "ui.state", json!({}));
+    assert_eq!(state["ace_link"]["active"], true);
+    let hints = state["ace_link"]["hints"].as_array().unwrap();
+    assert!(!hints.is_empty(), "visible links get single-char hints");
+    assert_eq!(hints[0]["char"].as_str().unwrap().chars().count(), 1);
+    h.key_press(egui::Key::A);
+    h.run_steps(2);
+    assert_eq!(h.state().last_opened_url.as_deref(), Some(pdfcraft_engine::links::DISCORD));
+
+    ok(&mut h, &c, "ui.command", json!({ "id": "app.quit" }));
+    assert!(close_requested(&h));
+}

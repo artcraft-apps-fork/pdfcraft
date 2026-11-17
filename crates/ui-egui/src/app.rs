@@ -328,6 +328,7 @@ impl PdfCraftApp {
             pending_full_screen: None,
             pending_window: None,
             pending_remote_link: None,
+            ace_link: Default::default(),
             protect_draft: Default::default(),
             text_style_draft: Default::default(),
             boxes_draft: Default::default(),
@@ -756,6 +757,7 @@ impl PdfCraftApp {
         // bar, so the chord runs in the same press, the pages' as well as the registry's.
         craft_menu::bar::leave_for_shortcut(ctx);
         self.hotbar.close_hidden_picker(ctx, self.hotbar_hidden());
+        self.ace_link_keys(ctx);
         self.page_keys = page_keys::PageKeys::new(self.over_pages(ctx));
         crate::modal::intercept_keys(self, ctx);
         self.shortcuts(ctx);
@@ -827,6 +829,7 @@ impl PdfCraftApp {
         }
         // Before any widget reads this frame's wheel input or draws.
         self.motion.begin_pass(&ctx, self.animation_effects);
+        crate::ace_link::begin_frame(&ctx);
         // One-time 0.36 -> 0.37 panel persistence migration, before any panel stores or reads state.
         migrate_panel_state(ui);
         // Another tool lets go of a click whose picture is still being found, whether or not its
@@ -857,11 +860,15 @@ impl PdfCraftApp {
                     }
                 }
             });
+            if self.modal_open() {
+                crate::ace_link::begin_frame(&ctx);
+            }
             dialogs::show(self, &ctx);
             // Notices too: a refused field value or a failed save must be seen in full screen.
             self.show_progress(&ctx);
             widgets::toast(self, &ctx);
             crate::modal::paint_overlay(self, &ctx);
+            self.ace_link_frame(&ctx);
             self.finish_render_frame(&ctx);
             if let Some(mut control) = self.control.take() {
                 control.finish_frame(&ctx, self);
@@ -892,10 +899,14 @@ impl PdfCraftApp {
             // still show above it.
             workflows::ocr_verify::show(self, ui);
             palette::show(self, &ctx);
+            if self.modal_open() {
+                crate::ace_link::begin_frame(&ctx);
+            }
             dialogs::show(self, &ctx);
             self.show_progress(&ctx);
             widgets::toast(self, &ctx);
             crate::modal::paint_overlay(self, &ctx);
+            self.ace_link_frame(&ctx);
             self.finish_render_frame(&ctx);
             if let Some(mut control) = self.control.take() {
                 control.finish_frame(&ctx, self);
@@ -922,10 +933,14 @@ impl PdfCraftApp {
         self.window_preferences_frame(&ctx);
         self.process_pending_edits();
         palette::show(self, &ctx);
+        if self.modal_open() {
+            crate::ace_link::begin_frame(&ctx);
+        }
         dialogs::show(self, &ctx);
         self.show_progress(&ctx);
         widgets::toast(self, &ctx);
         crate::modal::paint_overlay(self, &ctx);
+        self.ace_link_frame(&ctx);
         self.finish_render_frame(&ctx);
         // Screenshots are issued only after a settled pass that really drew the window.
         if let Some(mut control) = self.control.take() {

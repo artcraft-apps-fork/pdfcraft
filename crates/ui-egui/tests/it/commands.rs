@@ -767,3 +767,192 @@ fn ctrl_tab_steps_through_the_tabs_in_order_and_wraps_around() {
         assert!(!doc.dirty, "switching tabs changes no document");
     }
 }
+
+#[test]
+fn quit_application_command_closes_clean_and_prompts_when_dirty() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("app.quit"));
+    h.step();
+    assert!(h.output().viewport_output.values().any(|v| v.commands.contains(&egui::ViewportCommand::Close)));
+
+    let mut dirty = harness();
+    assert!(dirty.state_mut().execute("page.insert_blank"));
+    dirty.run_steps(2);
+    assert!(dirty.state_mut().execute("app.quit"));
+    dirty.run_steps(2);
+    assert_eq!(dirty.state().close_request, Some(pdfcraft_ui_egui::CloseRequest::Quit));
+    assert!(!dirty.output().viewport_output.values().any(|v| v.commands.contains(&egui::ViewportCommand::Close)));
+}
+
+fn linked_doc_fixture() -> Vec<u8> {
+    let body_p1 = "BT /F1 12 Tf 40 260 Td (https://example.com/plain-text) Tj ET";
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+        "<< /Type /Pages /Kids [3 0 R 7 0 R] /Count 2 /MediaBox [0 0 300 400] >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [6 0 R 8 0 R] >>".to_string(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_string(),
+        format!("<< /Length {} >>\nstream\n{body_p1}\nendstream", body_p1.len()),
+        "<< /Type /Annot /Subtype /Link /Rect [40 320 220 350] /Border [0 0 0] /A << /S /URI /URI (https://example.org/doc-link) >> >>".to_string(),
+        "<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 4 0 R >> >> >>".to_string(),
+        "<< /Type /Annot /Subtype /Link /Rect [40 200 220 230] /Border [0 0 0] /Dest [7 0 R /Fit] >>".to_string(),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{o}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
+    for o in offsets {
+        out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
+    out
+}
+
+fn key_for_hint(ch: char) -> Key {
+    match ch.to_ascii_lowercase() {
+        'a' => Key::A,
+        's' => Key::S,
+        'd' => Key::D,
+        'f' => Key::F,
+        'g' => Key::G,
+        'h' => Key::H,
+        'j' => Key::J,
+        'k' => Key::K,
+        'l' => Key::L,
+        other => panic!("unexpected hint char {other:?}"),
+    }
+}
+
+#[test]
+fn ace_open_link_overlays_visible_links_and_opens_on_key_press() {
+    // 1. On Home: visible links include the top-bar Discord button and community link pills.
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app
+    });
+    h.run_steps(4);
+
+    h.state_mut().set_option("palette", "ace.open_link").unwrap();
+    h.run_steps(2);
+    h.key_press(Key::Enter);
+    h.run_steps(2);
+    assert!(h.state().ace_link.active);
+    let hints = h.state().ace_link.candidates.clone();
+    assert!(hints.len() >= 5, "expected top-bar Discord + 4 Home community links, got {}", hints.len());
+    for cand in &hints {
+        let s = cand.hint.to_string();
+        assert_eq!(s.chars().count(), 1);
+        let painted = h.output().shapes.iter().any(|shape| matches!(&shape.shape, egui::Shape::Text(text) if text.galley.job.text == s));
+        assert!(painted, "expected single-char overlay badge for hint {:?}", cand.hint);
+    }
+
+    // Pressing Escape cancels without opening any link.
+    h.key_press(Key::Escape);
+    h.run_steps(2);
+    assert!(!h.state().ace_link.active);
+    assert_eq!(h.state().last_opened_url, None);
+
+    // Re-activate and press the hint char for the GitHub link.
+    assert!(h.state_mut().execute("ace.open_link"));
+    h.run_steps(2);
+    let github_hint = h
+        .state()
+        .ace_link
+        .candidates
+        .iter()
+        .find(|c| matches!(&c.target, pdfcraft_ui_egui::ace_link::AceLinkTarget::UiUrl(u) if u == pdfcraft_engine::links::GITHUB))
+        .expect("GitHub link should be overlaid")
+        .hint;
+    h.key_press(key_for_hint(github_hint));
+    h.run_steps(2);
+    assert!(!h.state().ace_link.active);
+    assert_eq!(h.state().last_opened_url.as_deref(), Some(pdfcraft_engine::links::GITHUB));
+
+    // 2. With a PDF open: overlays cover visible PDF link annotations, plain-text URLs, and UI links.
+    let mut doc_h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("links.pdf", None, linked_doc_fixture()).unwrap();
+        app.set_option("left", "closed").unwrap();
+        app.set_option("panel", "none").unwrap();
+        app
+    });
+    doc_h.run_steps(6);
+    // Wait for page text extraction so plain-text links are detected too.
+    assert!(support::step_until(&mut doc_h, |h| h.state().views[0].has_page_text(0)));
+
+    // Enable Vim modal mode too, to verify hint keys work even when modal normal mode is active.
+    pdfcraft_ui_egui::modal::with_state(&doc_h.ctx, |s| s.engine.options.enabled = true);
+
+    assert!(doc_h.state_mut().execute("ace.open_link"));
+    doc_h.run_steps(2);
+    assert!(doc_h.state().ace_link.active);
+
+    let uri_hint = doc_h
+        .state()
+        .ace_link
+        .candidates
+        .iter()
+        .find(|c| {
+            matches!(
+                &c.target,
+                pdfcraft_ui_egui::ace_link::AceLinkTarget::DocumentLink {
+                    target: pdfcraft_render::LinkTarget::Uri(u),
+                    ..
+                } if u == "https://example.org/doc-link"
+            )
+        })
+        .expect("PDF URI link should have an overlay")
+        .hint;
+    let plain_hint = doc_h
+        .state()
+        .ace_link
+        .candidates
+        .iter()
+        .find(|c| {
+            matches!(
+                &c.target,
+                pdfcraft_ui_egui::ace_link::AceLinkTarget::DocumentUri(u) if u == "https://example.com/plain-text"
+            )
+        })
+        .expect("Plain-text URL should have an overlay")
+        .hint;
+    let goto_hint = doc_h
+        .state()
+        .ace_link
+        .candidates
+        .iter()
+        .find(|c| {
+            matches!(&c.target, pdfcraft_ui_egui::ace_link::AceLinkTarget::DocumentLink { target: pdfcraft_render::LinkTarget::Page(1, _), .. })
+        })
+        .expect("PDF page link should have an overlay")
+        .hint;
+
+    // Activate PDF URI link by pressing its hint char.
+    doc_h.key_press(key_for_hint(uri_hint));
+    doc_h.run_steps(2);
+    assert!(!doc_h.state().ace_link.active);
+    assert_eq!(doc_h.state().pending_link.as_ref().map(|p| p.url.as_str()), Some("https://example.org/doc-link"));
+    doc_h.get_by_label("Cancel").click();
+    doc_h.run_steps(2);
+
+    // Activate plain-text URL by pressing its hint char.
+    assert!(doc_h.state_mut().execute("ace.open_link"));
+    doc_h.run_steps(2);
+    doc_h.key_press(key_for_hint(plain_hint));
+    doc_h.run_steps(2);
+    assert_eq!(doc_h.state().pending_link.as_ref().map(|p| p.url.as_str()), Some("https://example.com/plain-text"));
+    doc_h.get_by_label("Cancel").click();
+    doc_h.run_steps(2);
+
+    // Activate PDF GoTo-page link by pressing its hint char.
+    assert!(doc_h.state_mut().execute("ace.open_link"));
+    doc_h.run_steps(2);
+    doc_h.key_press(key_for_hint(goto_hint));
+    doc_h.run_steps(2);
+    assert_eq!(doc_h.state().views[0].current, 1);
+}

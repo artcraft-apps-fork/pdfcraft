@@ -163,6 +163,13 @@ impl Host for crate::PdfCraftApp {
             "progress": self.progress_notice.as_ref().map(|p| json!({ "label": p.label, "fraction": p.fraction })),
             "password_prompt": self.password_prompt.is_some(),
             "close_prompt": self.close_request.is_some(),
+            "ace_link": {
+                "active": self.ace_link.active,
+                "hints": self.ace_link.candidates.iter().map(|c| json!({
+                    "char": c.hint.to_string(),
+                    "rect": [c.rect.min.x, c.rect.min.y, c.rect.max.x, c.rect.max.y],
+                })).collect::<Vec<_>>(),
+            },
         })
     }
 
